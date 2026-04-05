@@ -1,0 +1,134 @@
+Звіт з лабораторної роботи
+Тема: Обробка помилок у функціональному стилі
+Виконав: Пономаренко Олег
+
+Завдання 1. Аналіз коду
+def divide(a, b):
+    return a / b
+При b=0 виникне ZeroDivisionError. Версія з try/except:
+def divide(a, b):
+    try:
+        return a / b
+    except ZeroDivisionError:
+        return None
+Недоліки: прихована логіка (поведінка при помилці незрозуміла без читання коду), побічні ефекти (None — не явна помилка), складність композиції (важко ланцюжково обробляти).
+
+Завдання 2. Safe-функція
+def safe_divide(a, b):
+    if b == 0:
+        return ('error', 'division by zero')
+    return ('ok', a / b)
+
+print(safe_divide(10, 2))   # ('ok', 5.0)
+print(safe_divide(10, 0))   # ('error', 'division by zero')
+
+Завдання 3. Реалізація Option
+class Some:
+    def __init__(self, value):
+        self.value = value
+    def __repr__(self):
+        return f'Some({self.value})'
+
+class Nothing:
+    def __repr__(self):
+        return 'Nothing'
+
+Завдання 4. Safe функція з Option
+def safe_divide(a, b):
+    if b == 0:
+        return Nothing()
+    return Some(a / b)
+
+print(safe_divide(10, 2))  # Some(5.0)
+print(safe_divide(10, 0))  # Nothing
+
+Завдання 5. Map для Option
+class Some:
+    def __init__(self, value):
+        self.value = value
+    def map(self, func):
+        return Some(func(self.value))
+
+class Nothing:
+    def map(self, func):
+        return self
+
+print(Some(5).map(lambda x: x * 2))   # Some(10)
+print(Nothing().map(lambda x: x * 2)) # Nothing
+
+Завдання 6. Ланцюжок обчислень
+result = (safe_divide(10, 2)
+    .map(lambda x: x * 2)
+    .map(lambda x: x + 5))
+print(result)  # Some(15.0)
+
+error_result = (safe_divide(10, 0)
+    .map(lambda x: x * 2)
+    .map(lambda x: x + 5))
+print(error_result)  # Nothing
+
+Завдання 7-8. Реалізація Result
+class Ok:
+    def __init__(self, value):
+        self.value = value
+    def map(self, func):
+        return Ok(func(self.value))
+    def flat_map(self, func):
+        return func(self.value)
+
+class Error:
+    def __init__(self, message):
+        self.message = message
+    def map(self, func):
+        return self
+    def flat_map(self, func):
+        return self
+
+def safe_divide(a, b):
+    if b == 0:
+        return Error('division by zero')
+    return Ok(a / b)
+
+Завдання 11. Pipeline без try/except
+def safe_pipeline(x):
+    return (
+        safe_divide(x, 2)
+        .map(lambda x: x + 10)
+        .flat_map(lambda x: safe_divide(x, 0))
+    )
+
+print(safe_pipeline(10))  # Error('division by zero')
+Pipeline зупиняється на flat_map з ділення на 0. Попередні кроки виконались успішно.
+
+Завдання 14. Multiple validations
+def validate_name(user):
+    errors = []
+    if not user.get('name'):
+        errors.append('name is empty')
+    if user.get('age', 0) < 18:
+        errors.append('age must be >= 18')
+    return errors
+
+user = {'name': 'Alice', 'age': 17}
+print(validate_name(user))  # ['age must be >= 18']
+
+Завдання 15. Data processing pipeline
+transactions = [{'amount': '100'}, {'amount': 'abc'}, {'amount': '200'}]
+
+def parse_amount(t):
+    try:
+        return Ok(int(t['amount']))
+    except ValueError:
+        return Error(f"Cannot parse: {t['amount']}")
+
+def validate_positive(x):
+    return Ok(x) if x > 0 else Error('not positive')
+
+results = [parse_amount(t).flat_map(validate_positive) for t in transactions]
+valid_sum = sum(r.value for r in results if isinstance(r, Ok))
+print(valid_sum)  # 300
+
+Висновок
+Функціональна обробка помилок через Option та Result дозволяє уникати try/except, 
+робить помилки явними частинами типової системи та 
+спрощує композицію функцій у pipeline без ризику несподіваних винятків.
